@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Live RSS Feed (via MQTT)</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 2rem; background: #f0f0f0; }
+    h1 { color: #333; }
+    #messages { margin-top: 1rem; }
+    .msg { background: #fff; padding: 1rem; margin-bottom: 0.5rem; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body>
+
+<h1>Live RSS Feed</h1>
+<p><strong>Source:</strong> MQTT Topic <code>rss/news/bbc</code> via HiveMQ</p>
+<div id="messages">Loading messages...</div>
+
+<script>
+  const topic = "rss/news/almasryalyoum";
+  const apiFallbackUrl = "https://mqttnews-production.up.railway.app/api/rss/published";
+  const messagesDiv = document.getElementById("messages");
+
+  function addMessage(msg) {
+    const div = document.createElement("div");
+    div.className = "msg";
+    div.textContent = msg;
+    messagesDiv.prepend(div);
+  }
+
+  function connectMQTT() {
+    const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
+
+    client.on("connect", () => {
+      client.subscribe(topic, (err) => {
+        if (!err) {
+          console.log("Subscribed to", topic);
+        }
+      });
+    });
+
+    client.on("message", (t, message) => {
+      addMessage(message.toString());
+    });
+
+    client.on("error", (e) => {
+      console.error("MQTT Error:", e);
+      fallbackToRest();
+    });
+
+    client.on("close", () => {
+      console.warn("MQTT Connection closed.");
+      fallbackToRest();
+    });
+  }
+
+  function fallbackToRest() {
+    fetch(apiFallbackUrl)
+      .then(res => res.json())
+      .then(data => {
+        messagesDiv.innerHTML = "";
+        data.reverse().forEach(addMessage);
+      })
+      .catch(err => {
+        messagesDiv.innerHTML = "<p style='color:red;'>Failed to load fallback data.</p>";
+        console.error(err);
+      });
+  }
+
+  connectMQTT();
+</script>
+
+</body>
+</html>
